@@ -9,14 +9,14 @@ If you ever installed **Cursor Spending** by `drash-course`, uninstall it first:
 
 ## 2. Install the alpha
 
-1. Save `cursor-spending-0.2.0.vsix` somewhere on your machine.
+1. Save `cursor-spending-0.2.1.vsix` somewhere on your machine.
 2. In Cursor, open the **Extensions** view (`Ctrl+Shift+X`).
 3. Click the **…** menu at the top of the view → **Install from VSIX…** → pick the file.
 
 Or from a terminal:
 
 ```
-cursor --install-extension cursor-spending-0.2.0.vsix
+cursor --install-extension cursor-spending-0.2.1.vsix
 ```
 
 ## 3. Reload
