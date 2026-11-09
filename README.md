@@ -1,78 +1,88 @@
-# Cursor Spending
+# Cursor Spending (Alpha)
 
-View your Cursor usage (Auto and API) in the status bar—with a single segment, progress bars in the tooltip, and spend details.
+View your Cursor spend in the status bar: month-to-date spend against your limit, and today's spend.
+
+> **Alpha build.** Expect rough edges.
 
 ![Screenshot](images/cursor-usage-preview.png)
 
+## Install (alpha testers)
+
+1. If you have the original **Cursor Spending** extension (publisher `drash-course`) installed, uninstall it first. Both register the same commands.
+2. In Cursor: **Extensions** view → **…** menu → **Install from VSIX…** → pick the `.vsix` file you were sent. Or from a terminal:
+
+   ```
+   cursor --install-extension cursor-spending-0.2.0.vsix
+   ```
+
+3. Reload the window. There is nothing to set up: if you're signed in to Cursor, spend appears in the status bar within a few seconds.
+
+## How it gets your spend
+
+| Source | When |
+|--------|------|
+| **Cursor sign-in** | Default. The extension reads your Cursor sign-in token from Cursor's local settings and asks cursor.com for your own usage. |
+| **Pasted session cookie** | Only if the sign-in can't be used (signed out, expired, or rejected) and you've pasted a cookie. |
+| **Arc (Cursor Insights)** | Optional. Only if you set up an Arc **User** key. When Arc fails, the extension pauses Arc for 24 hours and uses your Cursor sign-in. |
+
+Hover over the status bar item to see the source, your limit, and why Arc wasn't used. Colour is reserved for budget warnings and errors — not for which data source was used.
+
 ## Features
 
-- **Status bar** – One segment showing **Auto** and **API** usage percentages (e.g. `Auto: 1.4%  API: 4.5%`). Click to open the [Cursor dashboard](https://cursor.com/dashboard?tab=spending).
-- **Rich tooltip** – Hover to see:
-  - Progress bars for Auto and API usage
-  - What each bar means: Auto and Composer models vs other models, extra usage vs API quota, and included API usage when the dashboard API reports it
-  - Spend summary: total used, included, and remaining (when provided by the API)
-  - Bonus tooltip text when present
-- **Token setup** – If the session token is missing, clicking the status bar opens a panel to paste your token, with a link to the dashboard and a Save button. The token is stored in your settings.
-- **Refresh** – Data refreshes automatically (default: every 20 minutes). Use **Cursor Spending: Refresh usage** to refresh immediately.
+- **Status bar** – cycles between **month-to-date spend vs limit** and **today's spend**.
+- **Budget warning** – at 85% of limit (configurable), cycles in a yellow warning; at 100%+ uses the error colour. Click opens the increase-limit link.
+- **Refresh** – every 60 minutes by default, plus **Cursor Spending: Refresh usage** for an immediate update.
 
-## Requirements
+## Optional setup
 
-- **VS Code** or **Cursor** `^1.85.0`
-- A Cursor account (used to obtain the session token)
-
-## Installation
-
-### From the Marketplace
-
-1. Open the Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`).
-2. Search for **Cursor Spending**.
-3. Click **Install**.
-
-### Install from VSIX (local build)
-
-1. Clone the repo and run: `npm install && npm run compile`
-2. Run: `npx @vscode/vsce package`
-3. In the editor: **Extensions** → **...** → **Install from VSIX...** and select the generated `.vsix` file.
-
-## Quick Start
-
-1. **Get your session token**
-   - Open [cursor.com/dashboard](https://cursor.com/dashboard) in a browser and sign in.
-   - Open DevTools (**F12** or **Cmd+Option+I**) → **Application** (Chrome) or **Storage** (Firefox) → **Cookies** → `https://cursor.com`.
-   - Copy the **Value** of the **WorkosCursorSessionToken** cookie.
-
-2. **Configure the extension**
-   - Open Settings (`Ctrl+,` / `Cmd+,`), search for **Cursor Spending**, and paste the token into **Cursor Spending: Session Token**.
-   - Or leave the token empty and click the status bar segment; the setup panel will open so you can paste and save the token there.
-
-3. The status bar will show usage and refresh on the configured interval (default 20 minutes).
+- **Arc User key** – sign in at [arc.trimble.com](https://arc.trimble.com) → profile → **Settings** → **API Keys** → create a key of type **User** (Application keys are rejected). Run **Cursor Spending: Set up Arc API key** and enter the key and your full Cursor email. Each Arc refresh runs one Arc task and can take about 30 seconds.
+- **Pasted cookie** – run **Cursor Spending: Configure session token (fallback)** and paste `WorkosCursorSessionToken` from browser DevTools → Cookies → cursor.com.
 
 ## Extension Settings
 
 | Setting | Description | Default |
 |--------|-------------|---------|
-| `cursorSpending.sessionToken` | Your WorkosCursorSessionToken cookie value from [cursor.com/dashboard](https://cursor.com/dashboard). Get it from DevTools → Application → Cookies. | `""` |
-| `cursorSpending.refreshInterval` | How often to fetch usage, in minutes. | `20` (min: 1, max: 1440 = 1 day) |
+| `cursorSpending.refreshInterval` | How often to fetch usage, in minutes (15 minimum). | `60` |
+| `cursorSpending.statusBarCycleSeconds` | Seconds between spend/limit and today views. | `5` |
+| `cursorSpending.useCursorSignIn` | Use your local Cursor sign-in to read usage from cursor.com. Turn off to rely on Arc or a pasted cookie only. | `true` |
+| `cursorSpending.lookupEmail` | Arc only: your full Cursor account email. | `""` |
+| `cursorSpending.arcBaseUrl` | Arc Agent API base URL. | `https://arc.trimble.com/api/v1` |
+| `cursorSpending.arcSkillId` | Cursor Insights skill ID override (auto-discovered when empty). | `""` |
+| `cursorSpending.warnPercent` | Show budget warning at this percent of the limit. | `85` |
+| `cursorSpending.increaseLimitUrl` | Link opened from the budget warning. Empty uses the Cursor usage dashboard. | `""` |
 
 ## Commands
 
 | Command | Description |
 |--------|-------------|
 | **Cursor Spending: Refresh usage** | Fetches current usage and updates the status bar. |
-| **Cursor Spending: Configure session token** | Opens the token setup panel (input, dashboard link, Save). |
+| **Cursor Spending: Show log** | Opens the Output channel. Include this when reporting a problem. |
+| **Cursor Spending: Set up Arc API key** | Optional Arc User key + email. |
+| **Cursor Spending: Resume Arc** | Retry Arc now instead of waiting out a 24-hour pause. |
+| **Cursor Spending: Remove Arc API key** | Delete the stored Arc key. |
+| **Cursor Spending: Configure session token (fallback)** | Paste a session cookie. |
+
+## Reporting problems
+
+Send the extension owner:
+
+- What the status bar showed (text and colour) and the tooltip.
+- The output of **Cursor Spending: Show log**. It contains no keys or tokens, but it does include your email if you set one for Arc.
+- Whether the numbers match [cursor.com/dashboard](https://cursor.com/dashboard?tab=usage).
 
 ## Security and Privacy
 
-- The session token is stored in your editor **user settings** (global). Do not share it or commit it to a repository.
-- The extension uses your token to call `https://cursor.com/api/dashboard/get-current-period-usage` (POST, with the token in a Cookie header). Your token is not sent anywhere else.
+- Your Cursor sign-in token is read on your machine and sent only to cursor.com, the same service Cursor itself uses. It is never stored by the extension, logged, or sent anywhere else.
+- Arc keys and pasted cookies are stored in the editor's **secret storage** (Windows Credential Manager on Windows). No shared or admin credentials are used.
+- Only your own usage is requested.
+- Figures are Cursor Dashboard Cost and may differ slightly from invoices.
+- Month-to-date assumes the billing cycle starts on the 1st of the month.
 
 ## Development
 
-- Open this folder in VS Code or Cursor.
-- Run `npm install` and `npm run compile`.
-- Press **F5** to launch an Extension Development Host with the extension loaded.
-- Use **Developer: Reload Window** in the host to pick up code changes after recompiling.
+- `npm install`, `npm run compile`, then **F5** for an Extension Development Host.
+- `npm run package` builds the VSIX.
 
 ## License
 
-MIT
+MIT. Based on [drash-course/cursor-spending-extension](https://github.com/drash-course/cursor-spending-extension).

@@ -6,6 +6,10 @@ scripts/**
 tsconfig.json
 **/*.map
 node_modules/**
+docs/**
+alpha-tester/**
 *.md
 !README.md
 !CHANGELOG.md
+*.vsix
+*.zip

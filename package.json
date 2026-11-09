@@ -1,13 +1,13 @@
 {
   "name": "cursor-spending",
-  "displayName": "Cursor Spending",
-  "publisher": "drash-course",
+  "displayName": "Cursor Spending (Alpha)",
+  "publisher": "trimble-truckmate",
   "repository": {
     "type": "git",
     "url": "https://github.com/drash-course/cursor-spending-extension.git"
   },
-  "description": "Shows Cursor API usage (auto and API percent used) in the status bar",
-  "version": "1.0.5",
+  "description": "Alpha: shows your Cursor spend and today's spend in the status bar, from your Cursor sign-in or Arc (Cursor Insights)",
+  "version": "0.2.0",
   "icon": "images/spend_icon.png",
   "license": "MIT",
   "engines": {
@@ -24,17 +24,51 @@
     "configuration": {
       "title": "Cursor Spending",
       "properties": {
-        "cursorSpending.sessionToken": {
-          "type": "string",
-          "default": "",
-          "description": "WorkosCursorSessionToken cookie value from cursor.com. Get it from DevTools > Application > Cookies when logged into cursor.com/dashboard."
-        },
         "cursorSpending.refreshInterval": {
           "type": "number",
-          "default": 20,
-          "minimum": 1,
+          "default": 60,
+          "minimum": 15,
           "maximum": 1440,
-          "description": "Refresh interval in minutes"
+          "description": "Refresh interval in minutes. Use the refresh command for an immediate update."
+        },
+        "cursorSpending.statusBarCycleSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 120,
+          "description": "Seconds between cycling status bar views (spend vs budget, then today $/day)"
+        },
+        "cursorSpending.lookupEmail": {
+          "type": "string",
+          "default": "",
+          "description": "Optional (Arc only): your full Cursor account email. Arc's Cursor Insights skill looks up spend for this address only."
+        },
+        "cursorSpending.arcBaseUrl": {
+          "type": "string",
+          "default": "https://arc.trimble.com/api/v1",
+          "description": "Arc Agent API base URL."
+        },
+        "cursorSpending.useCursorSignIn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fallback: build the cursor.com session cookie from your local Cursor sign-in, so no cookie needs to be pasted. The token is read locally and only sent to cursor.com."
+        },
+        "cursorSpending.arcSkillId": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Cursor Insights skill ID override. Leave empty to auto-discover."
+        },
+        "cursorSpending.warnPercent": {
+          "type": "number",
+          "default": 85,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Show a status-bar budget warning when spend reaches this percent of the limit."
+        },
+        "cursorSpending.increaseLimitUrl": {
+          "type": "string",
+          "default": "",
+          "description": "HTTPS link opened from the budget warning (request a limit increase). Falls back to the Cursor usage dashboard when empty."
         }
       }
     },
@@ -44,8 +78,24 @@
         "title": "Cursor Spending: Refresh usage"
       },
       {
+        "command": "cursorSpending.openArcSetup",
+        "title": "Cursor Spending: Set up Arc API key"
+      },
+      {
+        "command": "cursorSpending.resumeArc",
+        "title": "Cursor Spending: Resume Arc"
+      },
+      {
+        "command": "cursorSpending.clearArcKey",
+        "title": "Cursor Spending: Remove Arc API key"
+      },
+      {
         "command": "cursorSpending.openTokenSetup",
-        "title": "Cursor Spending: Configure session token"
+        "title": "Cursor Spending: Configure session token (fallback)"
+      },
+      {
+        "command": "cursorSpending.showLog",
+        "title": "Cursor Spending: Show log"
       }
     ]
   },
@@ -57,9 +107,10 @@
     "build:icon": "node scripts/build-icon.js"
   },
   "devDependencies": {
-    "sharp": "^0.33.5",
+    "@types/node": "^20.19.43",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.2.0",
+    "sharp": "^0.33.5",
     "typescript": "^5.3.0"
   }
 }
