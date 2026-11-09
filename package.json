@@ -4,10 +4,10 @@
   "publisher": "trimble-truckmate",
   "repository": {
     "type": "git",
-    "url": "https://github.com/drash-course/cursor-spending-extension.git"
+    "url": "https://github.com/damianwallace/cursor-spending-extension.git"
   },
   "description": "Alpha: shows your Cursor spend and today's spend in the status bar, from your Cursor sign-in or Arc (Cursor Insights)",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "images/spend_icon.png",
   "license": "MIT",
   "engines": {
@@ -67,11 +67,33 @@
         },
         "cursorSpending.increaseLimitUrl": {
           "type": "string",
-          "default": "",
-          "description": "HTTPS link opened from the budget warning (request a limit increase). Falls back to the Cursor usage dashboard when empty."
+          "default": "https://trimblecloudops.atlassian.net/servicedesk/customer/portal/6/user/login?destination=portal%2F6%2Fgroup%2F41%2Fcreate%2F4536",
+          "description": "HTTPS link opened from the budget warning (request a Cursor spend limit increase). Defaults to the Trimble Cloud Ops service desk form."
+        },
+        "cursorSpending.showTeamSpend": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include team/org spend (pooled or on-demand) in the status-bar tooltip. Off by default; most users only need their individual spend."
+        },
+        "cursorSpending.debugFakeLimitUsd": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Debug only: pretend this dollar amount is your individual LIMIT (not a percent). 0 = real limit. With ~$1,260 spend: 1300 ≈ yellow (~97%), 1000 = red (>100%)."
         }
       }
     },
+    "colors": [
+      {
+        "id": "cursorSpending.spendForeground",
+        "description": "Status bar text color when spend is showing normally (below the budget warning threshold).",
+        "defaults": {
+          "dark": "#89D185",
+          "light": "#388A34",
+          "highContrast": "#89D185"
+        }
+      }
+    ],
     "commands": [
       {
         "command": "cursorSpending.refresh",

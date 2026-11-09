@@ -2,6 +2,14 @@
 
 All notable changes to Cursor Spending are documented here.
 
+## [0.2.1]
+
+- Decrypt Cursor 3.x encrypted sign-in tokens on Windows.
+- Green spend text; yellow/red budget warnings at 85%/100%.
+- Trimble Cloud Ops link for limit-increase requests.
+- Optional team spend tooltip (`showTeamSpend`); remove code-fence progress bars.
+- Debug fake limit setting for testing warning colours.
+
 ## [1.0.5]
 
 - Mirror Cursor dashboard wording in tooltips: Auto and Composer models vs other models, API quota for overage, and plan API usage when the API returns it.

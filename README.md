@@ -25,7 +25,7 @@ View your Cursor spend in the status bar: month-to-date spend against your limit
 | **Pasted session cookie** | Only if the sign-in can't be used (signed out, expired, or rejected) and you've pasted a cookie. |
 | **Arc (Cursor Insights)** | Optional. Only if you set up an Arc **User** key. When Arc fails, the extension pauses Arc for 24 hours and uses your Cursor sign-in. |
 
-Hover over the status bar item to see the source, your limit, and why Arc wasn't used. Colour is reserved for budget warnings and errors — not for which data source was used.
+Hover over the status bar item to see the source, your limit, and why Arc wasn't used. Normal spend/today text is green; yellow/red are only for budget warnings and errors.
 
 ## Features
 
@@ -49,7 +49,8 @@ Hover over the status bar item to see the source, your limit, and why Arc wasn't
 | `cursorSpending.arcBaseUrl` | Arc Agent API base URL. | `https://arc.trimble.com/api/v1` |
 | `cursorSpending.arcSkillId` | Cursor Insights skill ID override (auto-discovered when empty). | `""` |
 | `cursorSpending.warnPercent` | Show budget warning at this percent of the limit. | `85` |
-| `cursorSpending.increaseLimitUrl` | Link opened from the budget warning. Empty uses the Cursor usage dashboard. | `""` |
+| `cursorSpending.increaseLimitUrl` | Link opened from the budget warning (limit increase request). | Trimble Cloud Ops service desk form |
+| `cursorSpending.showTeamSpend` | Show team/org spend in the tooltip. | `false` |
 
 ## Commands
 

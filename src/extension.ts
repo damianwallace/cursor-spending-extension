@@ -15,6 +15,9 @@ const DASHBOARD_URL = "https://cursor.com/dashboard/usage";
 const DASHBOARD_REFERER = "https://cursor.com/dashboard?tab=usage";
 const ARC_SETTINGS_URL = "https://arc.trimble.com";
 const DEFAULT_ARC_BASE_URL = "https://arc.trimble.com/api/v1";
+/** Trimble Cloud Ops request form for Cursor spend limit increases. */
+const DEFAULT_INCREASE_LIMIT_URL =
+  "https://trimblecloudops.atlassian.net/servicedesk/customer/portal/6/user/login?destination=portal%2F6%2Fgroup%2F41%2Fcreate%2F4536";
 const SESSION_TOKEN_SECRET_KEY = "cursorSpending.sessionToken";
 const ARC_API_KEY_SECRET_KEY = "cursorSpending.arcApiKey";
 /** Removed Admin API key path — deleted from SecretStorage on activation. */
@@ -139,6 +142,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.StatusBarAlignment.Left,
     100
   );
+  statusBarItem.name = "Cursor Spending";
 
   context.subscriptions.push(statusBarItem);
 
@@ -1580,9 +1584,21 @@ function averageDailySpendCents(usage: PlanUsage): number | undefined {
   return spend / daysElapsedInCycle(usage);
 }
 
+/** Real or debug-overridden individual limit in cents. */
+function effectiveBudgetCents(usage: PlanUsage): number | undefined {
+  const fakeUsd = vscode.workspace
+    .getConfiguration("cursorSpending")
+    .get<number>("debugFakeLimitUsd", 0);
+  if (typeof fakeUsd === "number" && fakeUsd > 0) {
+    return Math.round(fakeUsd * 100);
+  }
+  const budget = usage.leftLimit ?? usage.includedSpend ?? usage.limit;
+  return typeof budget === "number" ? budget : undefined;
+}
+
 function spendBudgetText(usage: PlanUsage): string | undefined {
   const spendCents = usage.leftUsed ?? usage.totalSpend;
-  const budgetCents = usage.leftLimit ?? usage.includedSpend ?? usage.limit;
+  const budgetCents = effectiveBudgetCents(usage);
   if (typeof spendCents === "number" && typeof budgetCents === "number") {
     return `$(credit-card) ${formatUsdFromCents(spendCents)} / ${formatUsdFromCents(budgetCents)}`;
   }
@@ -1612,17 +1628,17 @@ function getWarnPercent(): number {
 function getIncreaseLimitUrl(): string {
   const configured = vscode.workspace
     .getConfiguration("cursorSpending")
-    .get<string>("increaseLimitUrl", "")
+    .get<string>("increaseLimitUrl", DEFAULT_INCREASE_LIMIT_URL)
     .trim();
   if (configured && isAllowedExternalUrl(configured)) {
     return configured;
   }
-  return DASHBOARD_URL;
+  return DEFAULT_INCREASE_LIMIT_URL;
 }
 
 function budgetPercentUsed(usage: PlanUsage): number | undefined {
   const spendCents = usage.leftUsed ?? usage.totalSpend;
-  const budgetCents = usage.leftLimit ?? usage.includedSpend ?? usage.limit;
+  const budgetCents = effectiveBudgetCents(usage);
   if (
     typeof spendCents !== "number" ||
     typeof budgetCents !== "number" ||
@@ -1675,21 +1691,13 @@ function applyStatusBarAppearance(usage: PlanUsage, view: 0 | 1 | 2): void {
   const spendText = spendBudgetText(usage);
   const dailyText = dailySpendText(usage);
   const warningText = budgetWarningText(usage);
+  const pct = budgetPercentUsed(usage);
+  const overWarn =
+    pct !== undefined && pct >= getWarnPercent();
 
   if (view === 2 && warningText) {
     statusBarItem.text = warningText;
-    const pct = budgetPercentUsed(usage) ?? 0;
-    statusBarItem.color = undefined;
-    statusBarItem.backgroundColor = new vscode.ThemeColor(
-      pct >= 100
-        ? "statusBarItem.errorBackground"
-        : "statusBarItem.warningBackground"
-    );
-    return;
-  }
-
-  clearStatusBarColors(statusBarItem);
-  if (view === 1 && dailyText) {
+  } else if (view === 1 && dailyText) {
     statusBarItem.text = dailyText;
   } else if (spendText) {
     statusBarItem.text = spendText;
@@ -1697,6 +1705,21 @@ function applyStatusBarAppearance(usage: PlanUsage, view: 0 | 1 | 2): void {
     statusBarItem.text = dailyText;
   } else {
     statusBarItem.text = "$(credit-card) Spend: —";
+  }
+
+  // Green only under the warning threshold; yellow/red once over, on every view.
+  if (overWarn) {
+    statusBarItem.color = undefined;
+    statusBarItem.backgroundColor = new vscode.ThemeColor(
+      (pct ?? 0) >= 100
+        ? "statusBarItem.errorBackground"
+        : "statusBarItem.warningBackground"
+    );
+  } else if (spendText || dailyText) {
+    statusBarItem.backgroundColor = undefined;
+    statusBarItem.color = new vscode.ThemeColor("cursorSpending.spendForeground");
+  } else {
+    clearStatusBarColors(statusBarItem);
   }
 }
 
@@ -1715,21 +1738,18 @@ function isAllowedExternalUrl(url: string): boolean {
     return (
       host === "cursor.com" ||
       host.endsWith(".cursor.com") ||
-      host === "arc.trimble.com"
+      host === "arc.trimble.com" ||
+      host === "trimblecloudops.atlassian.net"
     );
   } catch {
     return false;
   }
 }
 
-const PROGRESS_BAR_WIDTH = 24;
-const PROGRESS_FILL = "█";
-const PROGRESS_EMPTY = "░";
-
-function progressBar(percent: number, width: number = PROGRESS_BAR_WIDTH): string {
-  const filled = Math.min(width, Math.round((percent / 100) * width));
-  const empty = width - filled;
-  return PROGRESS_FILL.repeat(filled) + PROGRESS_EMPTY.repeat(empty);
+function showTeamSpendInTooltip(): boolean {
+  return vscode.workspace
+    .getConfiguration("cursorSpending")
+    .get<boolean>("showTeamSpend", false);
 }
 
 function buildUsageTooltip(planUsage: PlanUsage): vscode.MarkdownString {
@@ -1738,16 +1758,17 @@ function buildUsageTooltip(planUsage: PlanUsage): vscode.MarkdownString {
   const isCentsBuckets =
     planUsage.source === "usage-summary" || planUsage.source === "arc";
   const isArc = planUsage.source === "arc";
+  const showTeam = showTeamSpendInTooltip();
 
   const leftSpendCents = planUsage.leftUsed ?? planUsage.totalSpend;
-  const leftBudgetCents = planUsage.leftLimit ?? planUsage.includedSpend ?? planUsage.limit;
+  const leftBudgetCents = effectiveBudgetCents(planUsage);
   const leftPercentNum =
-    typeof planUsage.autoPercentUsed === "number"
-      ? planUsage.autoPercentUsed
-      : typeof leftSpendCents === "number" &&
-          typeof leftBudgetCents === "number" &&
-          leftBudgetCents > 0
-        ? (leftSpendCents / leftBudgetCents) * 100
+    typeof leftSpendCents === "number" &&
+    typeof leftBudgetCents === "number" &&
+    leftBudgetCents > 0
+      ? (leftSpendCents / leftBudgetCents) * 100
+      : typeof planUsage.autoPercentUsed === "number"
+        ? planUsage.autoPercentUsed
         : 0;
   const rightPercentNum =
     typeof planUsage.apiPercentUsed === "number"
@@ -1793,19 +1814,26 @@ function buildUsageTooltip(planUsage: PlanUsage): vscode.MarkdownString {
 
   lines.push(`### ${leftHeading}`);
   lines.push("");
-  lines.push("```");
-  lines.push(progressBar(leftPercentNum));
-  lines.push("```");
-  lines.push("");
   if (isCentsBuckets) {
+    const fakeLimit = effectiveBudgetCents(planUsage);
+    const remainingCents =
+      typeof leftSpendCents === "number" && typeof fakeLimit === "number"
+        ? Math.max(0, fakeLimit - leftSpendCents)
+        : planUsage.remaining;
     const remainingText =
-      typeof planUsage.remaining === "number"
-        ? ` ${formatUsdFromCents(planUsage.remaining)} remaining.`
+      typeof remainingCents === "number"
+        ? ` ${formatUsdFromCents(remainingCents)} remaining.`
+        : "";
+    const fakeNote =
+      vscode.workspace
+        .getConfiguration("cursorSpending")
+        .get<number>("debugFakeLimitUsd", 0) > 0
+        ? " *(debug fake limit)*"
         : "";
     lines.push(
       isArc
-        ? `Month-to-date Dashboard Cost from Cursor Insights.${remainingText} May differ slightly from invoices.`
-        : `Individual included spend.${remainingText}`
+        ? `Month-to-date Dashboard Cost from Cursor Insights.${remainingText} May differ slightly from invoices.${fakeNote}`
+        : `Individual included spend.${remainingText}${fakeNote}`
     );
   } else {
     lines.push(
@@ -1827,59 +1855,51 @@ function buildUsageTooltip(planUsage: PlanUsage): vscode.MarkdownString {
       `**Avg daily:** ${formatUsdFromCents(avgDaily)}/day over ${daysElapsedInCycle(planUsage)} day(s) in this billing cycle.`
     );
   }
-  lines.push("");
 
-  if (!isArc) {
+  if (!isArc && showTeam) {
+    lines.push("");
     lines.push(`### ${rightHeading}`);
     lines.push("");
-    lines.push("```");
-    lines.push(progressBar(rightPercentNum));
-    lines.push("```");
-    lines.push("");
-  }
-  if (isArc) {
-    // Cursor Insights exposes no separate on-demand bucket.
-  } else if (isCentsBuckets) {
-    lines.push(
-      planUsage.rightKind === "pooled"
-        ? "Team pooled spend (org included usage)."
-        : "Team on-demand spend."
-    );
-    if (
-      planUsage.secondaryRightKind &&
-      typeof planUsage.secondaryRightUsed === "number" &&
-      typeof planUsage.secondaryRightLimit === "number"
-    ) {
-      const secPct = percentUsed(
-        planUsage.secondaryRightUsed,
-        planUsage.secondaryRightLimit
-      );
-      const secLabel =
-        planUsage.secondaryRightKind === "pooled" ? "Team pooled" : "Team on-demand";
-      const secHeading = `${secLabel}: ${formatUsdFromCents(planUsage.secondaryRightUsed)} / ${formatUsdFromCents(planUsage.secondaryRightLimit)}${
-        secPct !== undefined ? ` (${secPct.toFixed(1)}%)` : ""
-      }`;
-      lines.push("");
-      lines.push(`### ${secHeading}`);
-      lines.push("");
-      lines.push("```");
-      lines.push(progressBar(secPct ?? 0));
-      lines.push("```");
-      lines.push("");
+    if (isCentsBuckets) {
       lines.push(
-        planUsage.secondaryRightKind === "pooled"
+        planUsage.rightKind === "pooled"
           ? "Team pooled spend (org included usage)."
           : "Team on-demand spend."
       );
+      if (
+        planUsage.secondaryRightKind &&
+        typeof planUsage.secondaryRightUsed === "number" &&
+        typeof planUsage.secondaryRightLimit === "number"
+      ) {
+        const secPct = percentUsed(
+          planUsage.secondaryRightUsed,
+          planUsage.secondaryRightLimit
+        );
+        const secLabel =
+          planUsage.secondaryRightKind === "pooled"
+            ? "Team pooled"
+            : "Team on-demand";
+        const secHeading = `${secLabel}: ${formatUsdFromCents(planUsage.secondaryRightUsed)} / ${formatUsdFromCents(planUsage.secondaryRightLimit)}${
+          secPct !== undefined ? ` (${secPct.toFixed(1)}%)` : ""
+        }`;
+        lines.push("");
+        lines.push(`### ${secHeading}`);
+        lines.push("");
+        lines.push(
+          planUsage.secondaryRightKind === "pooled"
+            ? "Team pooled spend (org included usage)."
+            : "Team on-demand spend."
+        );
+      }
+    } else {
+      const apiUsageUSD =
+        typeof planUsage.limit === "number" ? planUsage.limit / 100 : null;
+      lines.push(
+        apiUsageUSD
+          ? `Consumed by other models. Your plan includes at least $${apiUsageUSD.toFixed(2)} of API usage.`
+          : "Consumed by other models."
+      );
     }
-  } else {
-    const apiUsageUSD =
-      typeof planUsage.limit === "number" ? planUsage.limit / 100 : null;
-    lines.push(
-      apiUsageUSD
-        ? `Consumed by other models. Your plan includes at least $${apiUsageUSD.toFixed(2)} of API usage.`
-        : "Consumed by other models."
-    );
   }
 
   if (!isCentsBuckets) {
